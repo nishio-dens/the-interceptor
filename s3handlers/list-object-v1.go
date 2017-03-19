@@ -126,6 +126,7 @@ func getListObjects(
 		ch <- listObjectV1ResponseResult{
 			Result: nil,
 			Error:  err,
+			Priority: priority,
 		}
 		return
 	}
@@ -169,7 +170,8 @@ func getListObjects(
 }
 
 func mergeListObjectResponse(
-	bucket *db.InterceptorBucket, responses []listObjectV1ResponseResult,
+	bucket *db.InterceptorBucket,
+	responses []listObjectV1ResponseResult,
 ) *ListObjectV1Response {
 	contEncountered := map[string]int{}
 	conts := map[string]s3.Content{}
