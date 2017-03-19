@@ -12,6 +12,8 @@ import (
 	"the-interceptor/s3"
 	"the-interceptor/s3client"
 	"time"
+	"net/url"
+	"strconv"
 )
 
 type ListObjectV1Response struct {
@@ -44,30 +46,18 @@ func ListObjectV1Handler(w http.ResponseWriter, r *http.Request) {
 	// TODO: Support Paging
 
 	v := mux.Vars(r)
-	uquery := r.URL.Query()
 	bucket, err := getInterceptorBucket(v["bucket"])
 	if err != nil {
 		SendNoSuchBucketError(v["bucket"], w, r)
 		return
 	}
 
+	uquery := r.URL.Query()
 	readBucket := bucket.GetReadBucket()
+	writeBucket := bucket.GetWriteBucket()
+	ri := listObjectInput(readBucket, uquery)
+	listObjectInput(writeBucket, uquery)
 
-	delim := "/"
-	if len(uquery.Get("delimiter")) > 0 {
-		delim = uquery.Get("delimiter")
-	}
-	prefix := ""
-	if len(uquery.Get("prefix")) > 0 {
-		prefix = uquery.Get("prefix")
-	}
-	maxKeys := int64(1000) // TODO: FIXME
-	ri := &s3sdk.ListObjectsInput{
-		Bucket:    aws.String(readBucket.BucketName),
-		MaxKeys:   aws.Int64(maxKeys),
-		Delimiter: aws.String(delim),
-		Prefix:    aws.String(prefix),
-	}
 	rchan := make(chan listObjectV1ResponseResult)
 	go getListObjects(readBucket, ri, rchan)
 
@@ -86,6 +76,32 @@ func getInterceptorBucket(name string) (*db.InterceptorBucket, error) {
 		return nil, errors.New("Record Not Found")
 	}
 	return &bucket, nil
+}
+
+func listObjectInput(bucket *db.S3Bucket, uquery url.Values) *s3sdk.ListObjectsInput{
+	delim := "/"
+	if len(uquery.Get("delimiter")) > 0 {
+		delim = uquery.Get("delimiter")
+	}
+	prefix := ""
+	if len(uquery.Get("prefix")) > 0 {
+		prefix = uquery.Get("prefix")
+	}
+	maxKeys := int64(1000)
+	if len(uquery.Get("max-keys")) > 0 {
+		k, err := strconv.Atoi(uquery.Get("max-keys"))
+		if err == nil {
+			maxKeys = int64(k)
+		}
+	}
+
+	// TODO: Support EncodingType, Marker, RequestPayer
+	return &s3sdk.ListObjectsInput{
+		Bucket:    aws.String(bucket.BucketName),
+		MaxKeys:   aws.Int64(maxKeys),
+		Delimiter: aws.String(delim),
+		Prefix:    aws.String(prefix),
+	}
 }
 
 func getListObjects(bucket *db.S3Bucket, input *s3sdk.ListObjectsInput, ch chan<- listObjectV1ResponseResult) {
