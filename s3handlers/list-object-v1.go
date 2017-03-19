@@ -7,11 +7,14 @@ import (
 	s3sdk "github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gorilla/mux"
 	"net/http"
+	"net/url"
+	"strconv"
 	"the-interceptor/api"
 	"the-interceptor/db"
 	"the-interceptor/s3"
 	"the-interceptor/s3client"
 	"time"
+	"sort"
 )
 
 type ListObjectV1Response struct {
@@ -28,8 +31,9 @@ type ListObjectV1Response struct {
 }
 
 type listObjectV1ResponseResult struct {
-	Result *ListObjectV1Response
-	Error  error
+	Result   *ListObjectV1Response
+	Error    error
+	Priority int
 }
 
 /**
@@ -39,45 +43,39 @@ see: http://docs.aws.amazon.com/ja_jp/AmazonS3/latest/API/RESTBucketGET.html
 func ListObjectV1Handler(w http.ResponseWriter, r *http.Request) {
 	// Future Work
 	// TODO: Merge Read and Write Bucket Objects
-	// TODO: Support maxKeys
 	// TODO: Support Marker
 	// TODO: Support Paging
 
 	v := mux.Vars(r)
-	uquery := r.URL.Query()
 	bucket, err := getInterceptorBucket(v["bucket"])
 	if err != nil {
 		SendNoSuchBucketError(v["bucket"], w, r)
 		return
 	}
 
+	uquery := r.URL.Query()
 	readBucket := bucket.GetReadBucket()
+	writeBucket := bucket.GetWriteBucket()
+	ri := listObjectInput(readBucket, uquery)
+	wi := listObjectInput(writeBucket, uquery)
+	requestBuckets := []*db.S3Bucket{readBucket, writeBucket}
 
-	delim := "/"
-	if len(uquery.Get("delimiter")) > 0 {
-		delim = uquery.Get("delimiter")
-	}
-	prefix := ""
-	if len(uquery.Get("prefix")) > 0 {
-		prefix = uquery.Get("prefix")
-	}
-	maxKeys := int64(1000) // TODO: FIXME
-	ri := &s3sdk.ListObjectsInput{
-		Bucket:    aws.String(readBucket.BucketName),
-		MaxKeys:   aws.Int64(maxKeys),
-		Delimiter: aws.String(delim),
-		Prefix:    aws.String(prefix),
-	}
 	rchan := make(chan listObjectV1ResponseResult)
-	go getListObjects(readBucket, ri, rchan)
+	go getListObjects(readBucket, 100, ri, rchan)
+	go getListObjects(writeBucket, 1, wi, rchan)
 
-	requestBuckets := []*db.S3Bucket{readBucket}
 	results := make([]listObjectV1ResponseResult, 2)
 	for i := range requestBuckets {
 		results[i] = <-rchan
+		if results[i].Error != nil {
+			// TODO: Implement Error handling correctly
+			SendInternalError("Something Happend. Maybe your bucket settings is wrong.", w, r)
+			return
+		}
 	}
 
-	api.SendSuccessXml(w, results[0].Result)
+	fr := mergeListObjectResponse(bucket, results)
+	api.SendSuccessXml(w, *fr)
 }
 
 func getInterceptorBucket(name string) (*db.InterceptorBucket, error) {
@@ -88,7 +86,39 @@ func getInterceptorBucket(name string) (*db.InterceptorBucket, error) {
 	return &bucket, nil
 }
 
-func getListObjects(bucket *db.S3Bucket, input *s3sdk.ListObjectsInput, ch chan<- listObjectV1ResponseResult) {
+func listObjectInput(bucket *db.S3Bucket, uquery url.Values) *s3sdk.ListObjectsInput {
+	// TODO: Need Refactor! param should be collect to struct
+	delim := "/"
+	if len(uquery.Get("delimiter")) > 0 {
+		delim = uquery.Get("delimiter")
+	}
+	prefix := ""
+	if len(uquery.Get("prefix")) > 0 {
+		prefix = uquery.Get("prefix")
+	}
+	maxKeys := int64(1000)
+	if len(uquery.Get("max-keys")) > 0 {
+		k, err := strconv.Atoi(uquery.Get("max-keys"))
+		if err == nil {
+			maxKeys = int64(k)
+		}
+	}
+
+	// TODO: Support EncodingType, Marker, RequestPayer
+	return &s3sdk.ListObjectsInput{
+		Bucket:    aws.String(bucket.BucketName),
+		MaxKeys:   aws.Int64(maxKeys),
+		Delimiter: aws.String(delim),
+		Prefix:    aws.String(prefix),
+	}
+}
+
+func getListObjects(
+	bucket *db.S3Bucket,
+	priority int,
+	input *s3sdk.ListObjectsInput,
+	ch chan<- listObjectV1ResponseResult,
+) {
 	client := s3client.GetS3Client(bucket)
 	resp, err := client.ListObjects(input)
 	if err != nil {
@@ -121,6 +151,7 @@ func getListObjects(bucket *db.S3Bucket, input *s3sdk.ListObjectsInput, ch chan<
 		prefixes[i] = s3.CommonPrefix{Prefix: *p.Prefix}
 	}
 
+	// TODO: implements Prefix, Marker, MaxKeys, IsTruncated
 	rs := ListObjectV1Response{
 		Name:           bucket.BucketName,
 		Prefix:         "",
@@ -131,7 +162,56 @@ func getListObjects(bucket *db.S3Bucket, input *s3sdk.ListObjectsInput, ch chan<
 		CommonPrefixes: prefixes,
 	}
 	ch <- listObjectV1ResponseResult{
-		Result: &rs,
-		Error:  nil,
+		Result:   &rs,
+		Error:    nil,
+		Priority: priority,
+	}
+}
+
+func mergeListObjectResponse(
+	bucket *db.InterceptorBucket, responses []listObjectV1ResponseResult,
+) *ListObjectV1Response {
+	contEncountered := map[string]int{}
+	conts := map[string]s3.Content{}
+	prefixEncountered := map[string]int{}
+	prefixes := map[string]s3.CommonPrefix{}
+
+	for _, rr := range responses {
+		for _, c := range rr.Result.Contents {
+			if contEncountered[c.Key] < rr.Priority {
+				contEncountered[c.Key] = rr.Priority
+				conts[c.Key] = c
+			}
+		}
+
+		for _, p := range rr.Result.CommonPrefixes {
+			if prefixEncountered[p.Prefix] < rr.Priority {
+				prefixEncountered[p.Prefix] = rr.Priority
+				prefixes[p.Prefix] = p
+			}
+		}
+	}
+
+	cresults := []s3.Content{}
+	for _, v := range conts {
+		cresults = append(cresults, v)
+	}
+	sort.Sort(s3.ContentsSortByKey(cresults))
+
+	presults := []s3.CommonPrefix{}
+	for _, v := range prefixes {
+		presults = append(presults, v)
+	}
+	sort.Sort(s3.CommonPrefixSortByPrefix(presults))
+
+	// TODO: implements Prefix, Marker, MaxKeys, IsTruncated
+	return &ListObjectV1Response{
+		Name:        bucket.Name,
+		Prefix:      "",
+		Marker:      "",
+		MaxKeys:     1000,
+		IsTruncated: false,
+		Contents:    cresults,
+		CommonPrefixes: presults,
 	}
 }

@@ -9,6 +9,7 @@ type InterceptorBucket struct {
 	gorm.Model
 
 	Id            int64      `gorm:"column:id;primary_key"`
+	Name          string     `gorm:"column:name"`
 	ReadBucketId  int64      `gorm:"column:read_bucket_id"`
 	WriteBucketId int64      `gorm:"column:write_bucket_id"`
 	CreatedAt     time.Time  `gorm:"column:created_at"`
