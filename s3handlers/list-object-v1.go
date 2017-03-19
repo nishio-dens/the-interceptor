@@ -42,7 +42,6 @@ see: http://docs.aws.amazon.com/ja_jp/AmazonS3/latest/API/RESTBucketGET.html
 */
 func ListObjectV1Handler(w http.ResponseWriter, r *http.Request) {
 	// Future Work
-	// TODO: Merge Read and Write Bucket Objects
 	// TODO: Support Marker
 	// TODO: Support Paging
 
