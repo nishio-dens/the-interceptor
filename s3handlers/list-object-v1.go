@@ -8,13 +8,13 @@ import (
 	"github.com/gorilla/mux"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"the-interceptor/api"
 	"the-interceptor/db"
 	"the-interceptor/s3"
 	"the-interceptor/s3client"
 	"time"
-	"sort"
 )
 
 type ListObjectV1Response struct {
@@ -206,12 +206,12 @@ func mergeListObjectResponse(
 
 	// TODO: implements Prefix, Marker, MaxKeys, IsTruncated
 	return &ListObjectV1Response{
-		Name:        bucket.Name,
-		Prefix:      "",
-		Marker:      "",
-		MaxKeys:     1000,
-		IsTruncated: false,
-		Contents:    cresults,
+		Name:           bucket.Name,
+		Prefix:         "",
+		Marker:         "",
+		MaxKeys:        1000,
+		IsTruncated:    false,
+		Contents:       cresults,
 		CommonPrefixes: presults,
 	}
 }
