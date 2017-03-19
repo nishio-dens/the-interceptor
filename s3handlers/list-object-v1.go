@@ -14,6 +14,7 @@ import (
 	"the-interceptor/s3"
 	"the-interceptor/s3client"
 	"time"
+	"sort"
 )
 
 type ListObjectV1Response struct {
@@ -186,6 +187,8 @@ func mergeListObjectResponse(
 	for _, v := range conts {
 		cresults = append(cresults, v)
 	}
+	sort.Sort(s3.ContentsSortByKey(cresults))
+
 	// TODO: implements Prefix, Marker, MaxKeys, IsTruncated
 	return &ListObjectV1Response{
 		Name:        bucket.Name,
