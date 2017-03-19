@@ -41,7 +41,6 @@ see: http://docs.aws.amazon.com/ja_jp/AmazonS3/latest/API/RESTBucketGET.html
 func ListObjectV1Handler(w http.ResponseWriter, r *http.Request) {
 	// Future Work
 	// TODO: Merge Read and Write Bucket Objects
-	// TODO: Support maxKeys
 	// TODO: Support Marker
 	// TODO: Support Paging
 
@@ -56,15 +55,21 @@ func ListObjectV1Handler(w http.ResponseWriter, r *http.Request) {
 	readBucket := bucket.GetReadBucket()
 	writeBucket := bucket.GetWriteBucket()
 	ri := listObjectInput(readBucket, uquery)
-	listObjectInput(writeBucket, uquery)
+	wi := listObjectInput(writeBucket, uquery)
+	requestBuckets := []*db.S3Bucket{readBucket, writeBucket}
 
 	rchan := make(chan listObjectV1ResponseResult)
 	go getListObjects(readBucket, ri, rchan)
+	go getListObjects(writeBucket, wi, rchan)
 
-	requestBuckets := []*db.S3Bucket{readBucket}
 	results := make([]listObjectV1ResponseResult, 2)
 	for i := range requestBuckets {
 		results[i] = <-rchan
+		if results[i].Error != nil {
+			// TODO: Implement Error handling correctly
+			SendInternalError("Something Happend. Maybe your bucket settings is wrong.", w, r)
+			return
+		}
 	}
 
 	api.SendSuccessXml(w, results[0].Result)
