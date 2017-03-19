@@ -7,13 +7,13 @@ import (
 	s3sdk "github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gorilla/mux"
 	"net/http"
+	"net/url"
+	"strconv"
 	"the-interceptor/api"
 	"the-interceptor/db"
 	"the-interceptor/s3"
 	"the-interceptor/s3client"
 	"time"
-	"net/url"
-	"strconv"
 )
 
 type ListObjectV1Response struct {
@@ -30,8 +30,9 @@ type ListObjectV1Response struct {
 }
 
 type listObjectV1ResponseResult struct {
-	Result *ListObjectV1Response
-	Error  error
+	Result   *ListObjectV1Response
+	Error    error
+	Priority int
 }
 
 /**
@@ -59,8 +60,8 @@ func ListObjectV1Handler(w http.ResponseWriter, r *http.Request) {
 	requestBuckets := []*db.S3Bucket{readBucket, writeBucket}
 
 	rchan := make(chan listObjectV1ResponseResult)
-	go getListObjects(readBucket, ri, rchan)
-	go getListObjects(writeBucket, wi, rchan)
+	go getListObjects(readBucket, 100, ri, rchan)
+	go getListObjects(writeBucket, 1, wi, rchan)
 
 	results := make([]listObjectV1ResponseResult, 2)
 	for i := range requestBuckets {
@@ -72,7 +73,8 @@ func ListObjectV1Handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	api.SendSuccessXml(w, results[0].Result)
+	fr := mergeListObjectResponse(bucket, results)
+	api.SendSuccessXml(w, *fr)
 }
 
 func getInterceptorBucket(name string) (*db.InterceptorBucket, error) {
@@ -83,7 +85,8 @@ func getInterceptorBucket(name string) (*db.InterceptorBucket, error) {
 	return &bucket, nil
 }
 
-func listObjectInput(bucket *db.S3Bucket, uquery url.Values) *s3sdk.ListObjectsInput{
+func listObjectInput(bucket *db.S3Bucket, uquery url.Values) *s3sdk.ListObjectsInput {
+	// TODO: Need Refactor! param should be collect to struct
 	delim := "/"
 	if len(uquery.Get("delimiter")) > 0 {
 		delim = uquery.Get("delimiter")
@@ -109,7 +112,12 @@ func listObjectInput(bucket *db.S3Bucket, uquery url.Values) *s3sdk.ListObjectsI
 	}
 }
 
-func getListObjects(bucket *db.S3Bucket, input *s3sdk.ListObjectsInput, ch chan<- listObjectV1ResponseResult) {
+func getListObjects(
+	bucket *db.S3Bucket,
+	priority int,
+	input *s3sdk.ListObjectsInput,
+	ch chan<- listObjectV1ResponseResult,
+) {
 	client := s3client.GetS3Client(bucket)
 	resp, err := client.ListObjects(input)
 	if err != nil {
@@ -142,6 +150,7 @@ func getListObjects(bucket *db.S3Bucket, input *s3sdk.ListObjectsInput, ch chan<
 		prefixes[i] = s3.CommonPrefix{Prefix: *p.Prefix}
 	}
 
+	// TODO: implements Prefix, Marker, MaxKeys, IsTruncated
 	rs := ListObjectV1Response{
 		Name:           bucket.BucketName,
 		Prefix:         "",
@@ -152,7 +161,38 @@ func getListObjects(bucket *db.S3Bucket, input *s3sdk.ListObjectsInput, ch chan<
 		CommonPrefixes: prefixes,
 	}
 	ch <- listObjectV1ResponseResult{
-		Result: &rs,
-		Error:  nil,
+		Result:   &rs,
+		Error:    nil,
+		Priority: priority,
+	}
+}
+
+func mergeListObjectResponse(
+	bucket *db.InterceptorBucket, responses []listObjectV1ResponseResult,
+) *ListObjectV1Response {
+	contEncountered := map[string]int{}
+	conts := map[string]s3.Content{}
+
+	for _, rr := range responses {
+		for _, c := range rr.Result.Contents {
+			if contEncountered[c.Key] < rr.Priority {
+				contEncountered[c.Key] = rr.Priority
+				conts[c.Key] = c
+			}
+		}
+	}
+
+	cresults := []s3.Content{}
+	for _, v := range conts {
+		cresults = append(cresults, v)
+	}
+	// TODO: implements Prefix, Marker, MaxKeys, IsTruncated
+	return &ListObjectV1Response{
+		Name:        bucket.Name,
+		Prefix:      "",
+		Marker:      "",
+		MaxKeys:     1000,
+		IsTruncated: false,
+		Contents:    cresults,
 	}
 }
