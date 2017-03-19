@@ -173,12 +173,21 @@ func mergeListObjectResponse(
 ) *ListObjectV1Response {
 	contEncountered := map[string]int{}
 	conts := map[string]s3.Content{}
+	prefixEncountered := map[string]int{}
+	prefixes := map[string]s3.CommonPrefix{}
 
 	for _, rr := range responses {
 		for _, c := range rr.Result.Contents {
 			if contEncountered[c.Key] < rr.Priority {
 				contEncountered[c.Key] = rr.Priority
 				conts[c.Key] = c
+			}
+		}
+
+		for _, p := range rr.Result.CommonPrefixes {
+			if prefixEncountered[p.Prefix] < rr.Priority {
+				prefixEncountered[p.Prefix] = rr.Priority
+				prefixes[p.Prefix] = p
 			}
 		}
 	}
@@ -189,6 +198,12 @@ func mergeListObjectResponse(
 	}
 	sort.Sort(s3.ContentsSortByKey(cresults))
 
+	presults := []s3.CommonPrefix{}
+	for _, v := range prefixes {
+		presults = append(presults, v)
+	}
+	sort.Sort(s3.CommonPrefixSortByPrefix(presults))
+
 	// TODO: implements Prefix, Marker, MaxKeys, IsTruncated
 	return &ListObjectV1Response{
 		Name:        bucket.Name,
@@ -197,5 +212,6 @@ func mergeListObjectResponse(
 		MaxKeys:     1000,
 		IsTruncated: false,
 		Contents:    cresults,
+		CommonPrefixes: presults,
 	}
 }
