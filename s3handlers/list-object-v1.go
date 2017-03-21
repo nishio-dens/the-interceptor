@@ -114,8 +114,8 @@ func getListObjects(
 	if err != nil {
 		// Internal Error
 		ch <- listObjectV1ResponseResult{
-			Result: nil,
-			Error:  err,
+			Result:   nil,
+			Error:    err,
 			Priority: priority,
 		}
 		return

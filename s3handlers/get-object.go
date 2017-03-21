@@ -4,11 +4,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	s3sdk "github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gorilla/mux"
+	"io/ioutil"
 	"net/http"
 	"the-interceptor/api"
 	"the-interceptor/db"
 	"the-interceptor/s3client"
-	"io/ioutil"
 )
 
 /**

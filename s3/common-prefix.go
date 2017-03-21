@@ -4,7 +4,6 @@ type CommonPrefix struct {
 	Prefix string
 }
 
-
 type CommonPrefixSortByPrefix []CommonPrefix
 
 func (c CommonPrefixSortByPrefix) Len() int {
