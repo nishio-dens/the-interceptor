@@ -2,7 +2,6 @@ package s3handlers
 
 import (
 	"encoding/xml"
-	"errors"
 	"github.com/aws/aws-sdk-go/aws"
 	s3sdk "github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gorilla/mux"
