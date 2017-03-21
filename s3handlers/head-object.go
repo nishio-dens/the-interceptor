@@ -1,13 +1,14 @@
 package s3handlers
 
 import (
-	"github.com/gorilla/mux"
 	"net/http"
-	"fmt"
+	"the-interceptor/api"
 )
 
+// TODO: In order to use aws s3 cp s3://some/bucket/path - commands,
+//       We need to implements HEAD
 func HeadObjectHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "HEAD %v\n", vars["category"])
+	// FIXME: not implemented yet
+	w.Header().Set("Content-Length", "100") // FIXME: dummy
+	api.SendSuccess(w, []byte(""), "")
 }
