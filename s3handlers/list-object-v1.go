@@ -46,7 +46,7 @@ func ListObjectV1Handler(w http.ResponseWriter, r *http.Request) {
 	// TODO: Support Paging
 
 	v := mux.Vars(r)
-	bucket, err := getInterceptorBucket(v["bucket"])
+	bucket, err := GetInterceptorBucket(v["bucket"])
 	if err != nil {
 		SendNoSuchBucketError(v["bucket"], w, r)
 		return
@@ -75,14 +75,6 @@ func ListObjectV1Handler(w http.ResponseWriter, r *http.Request) {
 
 	fr := mergeListObjectResponse(bucket, results)
 	api.SendSuccessXml(w, *fr)
-}
-
-func getInterceptorBucket(name string) (*db.InterceptorBucket, error) {
-	var bucket db.InterceptorBucket
-	if db.Conn.Where("name = ?", name).First(&bucket).RecordNotFound() {
-		return nil, errors.New("Record Not Found")
-	}
-	return &bucket, nil
 }
 
 func listObjectInput(bucket *db.S3Bucket, uquery url.Values) *s3sdk.ListObjectsInput {
