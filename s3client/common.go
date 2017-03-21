@@ -49,3 +49,11 @@ func (c *Client) ListObjects(input *s3sdk.ListObjectsInput) (*s3sdk.ListObjectsO
 	}
 	return resp, nil
 }
+
+func (c *Client) GetObject(input *s3sdk.GetObjectInput) (*s3sdk.GetObjectOutput, error){
+	resp, err := c.s3cli.GetObject(input)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
