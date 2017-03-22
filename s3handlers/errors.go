@@ -25,6 +25,16 @@ func SendNoSuchBucketError(bucketName string, w http.ResponseWriter, r *http.Req
 	api.SendNotFoundXml(w, resp)
 }
 
+func SendNoSuchKeyError(key string, w http.ResponseWriter, r *http.Request) {
+	resp := ErrorResponse{
+		Code:      "NoSuchKey",
+		Message:   "The specified bucket key does not exist",
+		Resource:  key,
+		RequestId: "NotImplementedYet",
+	}
+	api.SendNotFoundXml(w, resp)
+}
+
 func SendInternalError(message string, w http.ResponseWriter, r *http.Request) {
 	resp := ErrorResponse{
 		Code:      "InternalError",
