@@ -1,6 +1,7 @@
 package s3handlers
 
 import (
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	s3sdk "github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gorilla/mux"
@@ -11,6 +12,15 @@ import (
 	"the-interceptor/s3client"
 )
 
+type getObjectResponseResult struct {
+	Key           string
+	ContentLength int64
+	ContentType   string
+	Body          []byte
+	Error         error
+	IsReadBucket  bool
+}
+
 /**
 GET Object
 see: http://docs.aws.amazon.com/ja_jp/AmazonS3/latest/API/RESTObjectGET.html
@@ -19,7 +29,6 @@ func GetObjectHandler(w http.ResponseWriter, r *http.Request) {
 	// Future Work
 	// TODO: Support RangeGet
 	// TODO: Support 403 Forbidden (Authorization)
-	// TODO: Support Not Found
 	v := mux.Vars(r)
 	bucket, err := GetInterceptorBucket(v["bucket"])
 	if err != nil {
@@ -27,35 +36,36 @@ func GetObjectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := v["object"]
+	ch := make(chan getObjectResponseResult)
 	readBucket := bucket.GetReadBucket()
 	writeBucket := bucket.GetWriteBucket()
+	requestBuckets := []*db.S3Bucket{readBucket, writeBucket}
+	go getObject(readBucket, key, true, ch)
+	go getObject(writeBucket, key, false, ch)
 
-	ro, _ := getObject(readBucket, key)
-	wo, _ := getObject(writeBucket, key)
+	var readResult getObjectResponseResult
+	var writeResult getObjectResponseResult
+	for range requestBuckets {
+		t := <-ch
+		if t.IsReadBucket {
+			readResult = t
+		} else {
+			writeResult = t
+		}
+	}
 
-	// FIXME: Need Refactor
-	if ro != nil {
-		defer ro.Body.Close()
-		b, e := ioutil.ReadAll(ro.Body)
-		if e != nil {
-			SendInternalError("Something Happend", w, r)
-		} else {
-			api.SendSuccess(w, b, *ro.ContentType)
-		}
-	} else if wo != nil {
-		defer wo.Body.Close() // TODO: fix memory leak if ro/wo is present
-		b, e := ioutil.ReadAll(wo.Body)
-		if e != nil {
-			SendInternalError("Something Happend", w, r)
-		} else {
-			api.SendSuccess(w, b, *wo.ContentType)
-		}
+	if readResult.Error != nil && writeResult.Error != nil {
+		SendNoSuchKeyError(key, w, r)
+	} else if readResult.Error == nil {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", readResult.ContentLength))
+		api.SendSuccess(w, readResult.Body, readResult.ContentType)
 	} else {
-		SendInternalError("404 NotFound. Not Implemented Yet", w, r)
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", writeResult.ContentLength))
+		api.SendSuccess(w, writeResult.Body, writeResult.ContentType)
 	}
 }
 
-func getObject(bucket *db.S3Bucket, key string) (*s3sdk.GetObjectOutput, error) {
+func getObject(bucket *db.S3Bucket, key string, isReadBucket bool, ch chan<- getObjectResponseResult) {
 	// TODO: Support range Get
 	client := s3client.GetS3Client(bucket)
 	resp, err := client.GetObject(&s3sdk.GetObjectInput{
@@ -63,7 +73,30 @@ func getObject(bucket *db.S3Bucket, key string) (*s3sdk.GetObjectOutput, error) 
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, err
+		ch <- getObjectResponseResult{
+			Key:          key,
+			Error:        err,
+			IsReadBucket: isReadBucket,
+		}
+		return
 	}
-	return resp, err
+
+	defer resp.Body.Close()
+	b, e := ioutil.ReadAll(resp.Body)
+	if e != nil {
+		ch <- getObjectResponseResult{
+			Key:          key,
+			Error:        err,
+			IsReadBucket: isReadBucket,
+		}
+		return
+	}
+	ch <- getObjectResponseResult{
+		Key:           key,
+		ContentLength: *resp.ContentLength,
+		ContentType:   *resp.ContentType,
+		Body:          b,
+		Error:         nil,
+		IsReadBucket:  isReadBucket,
+	}
 }
