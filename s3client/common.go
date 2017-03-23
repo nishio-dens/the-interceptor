@@ -50,9 +50,9 @@ func (c *Client) ListObjects(input *s3sdk.ListObjectsInput) (*s3sdk.ListObjectsO
 	return resp, nil
 }
 
-func (c *Client) HeadObject(input *s3sdk.HeadObjectInput) (*s3sdk.HeadObjectOutput, error){
+func (c *Client) HeadObject(input *s3sdk.HeadObjectInput) (*s3sdk.HeadObjectOutput, error) {
 	resp, err := c.s3cli.HeadObject(input)
-		if err != nil {
+	if err != nil {
 		return nil, err
 	}
 	return resp, nil
