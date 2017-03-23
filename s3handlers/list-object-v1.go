@@ -29,6 +29,7 @@ type ListObjectV1Response struct {
 	CommonPrefixes []s3.CommonPrefix
 }
 
+// FIXME: Need Refactor Priority int -> IsReadBucket bool
 type listObjectV1ResponseResult struct {
 	Result   *ListObjectV1Response
 	Error    error
