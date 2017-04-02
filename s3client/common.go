@@ -65,3 +65,11 @@ func (c *Client) GetObject(input *s3sdk.GetObjectInput) (*s3sdk.GetObjectOutput,
 	}
 	return resp, nil
 }
+
+func (c *Client) PutObject(input *s3sdk.PutObjectInput) (*s3sdk.PutObjectOutput, error) {
+	resp, err := c.s3cli.PutObject(input)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
