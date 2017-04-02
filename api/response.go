@@ -17,6 +17,11 @@ func SendSuccess(w http.ResponseWriter, response []byte, mime string) {
 	w.Write(response)
 }
 
+func SendNoBodySuccess(w http.ResponseWriter) {
+	writeCommonHeaders(w)
+	w.WriteHeader(http.StatusOK)
+}
+
 func SendInternalError(w http.ResponseWriter, response []byte, mime string) {
 	writeCommonHeaders(w)
 	w.Header().Set("Content-Type", string(mime))
