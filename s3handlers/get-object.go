@@ -10,12 +10,15 @@ import (
 	"the-interceptor/api"
 	"the-interceptor/db"
 	"the-interceptor/s3client"
+	"time"
 )
 
 type getObjectResponseResult struct {
 	Key           string
 	ContentLength int64
 	ContentType   string
+	LastModified  string
+	ETag          string
 	Body          []byte
 	Error         error
 	IsReadBucket  bool
@@ -57,10 +60,10 @@ func GetObjectHandler(w http.ResponseWriter, r *http.Request) {
 	if readResult.Error != nil && writeResult.Error != nil {
 		SendNoSuchKeyError(key, w, r)
 	} else if readResult.Error == nil {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", readResult.ContentLength))
+		writeGetObjectResultHeader(w, &readResult)
 		api.SendSuccess(w, readResult.Body, readResult.ContentType)
 	} else {
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", writeResult.ContentLength))
+		writeGetObjectResultHeader(w, &writeResult)
 		api.SendSuccess(w, writeResult.Body, writeResult.ContentType)
 	}
 }
@@ -95,8 +98,16 @@ func getObject(bucket *db.S3Bucket, key string, isReadBucket bool, ch chan<- get
 		Key:           key,
 		ContentLength: *resp.ContentLength,
 		ContentType:   *resp.ContentType,
+		LastModified:  (*resp.LastModified).Format(time.RFC1123),
+		ETag:          *resp.ETag,
 		Body:          b,
 		Error:         nil,
 		IsReadBucket:  isReadBucket,
 	}
+}
+
+func writeGetObjectResultHeader(w http.ResponseWriter, result *getObjectResponseResult) {
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", result.ContentLength))
+	w.Header().Set("Last-Modified", result.LastModified)
+	w.Header().Set("ETag", result.ETag)
 }
