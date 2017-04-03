@@ -73,3 +73,11 @@ func (c *Client) PutObject(input *s3sdk.PutObjectInput) (*s3sdk.PutObjectOutput,
 	}
 	return resp, nil
 }
+
+func (c *Client) InitiateMultipartUpload(input *s3sdk.CreateMultipartUploadInput) (*s3sdk.CreateMultipartUploadOutput, error) {
+	resp, err := c.s3cli.CreateMultipartUpload(input)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
