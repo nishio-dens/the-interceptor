@@ -1,8 +1,8 @@
-hash: c9a283e8e814063cd7774d78877543cadb58368ae9307e6f7d734c59a1fc654a
-updated: 2017-03-17T00:56:20.876880999+09:00
+hash: be5ae31273169ddc4ece6b32d88287ce6e7e33f373510f08a2868d1547e72771
+updated: 2017-04-04T01:31:47.813771514+09:00
 imports:
 - name: github.com/aws/aws-sdk-go
-  version: 695fe24acaf9afe80b0ce261d4637f42ba0b4c7d
+  version: 5ab6def9a2f0445ff22a47b16660fbb1ff919b16
   subpackages:
   - aws
   - aws/awserr
@@ -26,7 +26,6 @@ imports:
   - private/protocol/rest
   - private/protocol/restxml
   - private/protocol/xml/xmlutil
-  - private/waiter
   - service/s3
   - service/sts
 - name: github.com/go-ini/ini
@@ -39,14 +38,12 @@ imports:
   version: 392c28fe23e1c45ddba891b0320b3b5df220beea
 - name: github.com/jinzhu/gorm
   version: 5174cc5c242a728b435ea2be8a2f7f998e15429b
+  subpackages:
+  - dialects/mysql
 - name: github.com/jinzhu/inflection
   version: 1c35d901db3da928c72a72d8458480cc9ade058f
 - name: github.com/jmespath/go-jmespath
   version: bd40a432e4c76585ef6b72d3fd96fb9b6dc7b68d
-- name: github.com/joho/godotenv
-  version: 726cc8b906e3d31c70a9671c90a13716a8d3f50d
-  subpackages:
-  - cmd/godotenv
 - name: gopkg.in/yaml.v2
   version: a3f3340b5840cee44f372bddb5880fcbc419b46a
 testImports: []

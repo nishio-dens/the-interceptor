@@ -4,9 +4,6 @@
 # Clone this repo to $GOPATH/src/the-interceptor/
 
 glide install
-./setup.sh
-
-# Setup your .env
 ```
 
 # DB Setup
