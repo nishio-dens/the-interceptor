@@ -12,4 +12,5 @@ func RegisterRoute(r *mux.Router) {
 	bucket.Methods("GET").Path("/{object:.+}").HandlerFunc(GetObjectHandler)
 	bucket.Methods("GET").HandlerFunc(ListObjectV1Handler)
 	bucket.Methods("PUT").Path("/{object:.+}").HandlerFunc(PutObjectHandler)
+	bucket.Methods("POST").Path("/{object:.+}").HandlerFunc(InitiateMultipartUploadHandler).Queries("uploads", "")
 }
